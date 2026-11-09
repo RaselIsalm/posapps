@@ -1,0 +1,869 @@
+openapi: 3.1.0
+info:
+  title: ONE POS Mobile API
+  version: 1.0.0
+  description: >-
+    Shared API for the ONE POS Laravel website and Flutter mobile client.
+    Authentication uses Laravel Sanctum personal access tokens. Website
+    permissions and branch assignments are enforced by the server. User and
+    role provisioning remains in the website administration screens.
+servers:
+  - url: /api/v1
+    description: Current Laravel website origin
+security:
+  - sanctumBearer: []
+tags:
+  - name: Authentication
+  - name: Workspace
+  - name: Catalog
+  - name: POS
+  - name: Sales and purchases
+  - name: Finance
+paths:
+  /auth/login:
+    post:
+      tags: [Authentication]
+      operationId: login
+      security: []
+      summary: Sign in with website username or email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, description: Email address or username }
+                password: { type: string, format: password }
+      responses:
+        '200':
+          description: Sanctum token and current user
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          access:
+                            type: object
+                            properties:
+                              token: { type: string }
+                          user: { $ref: '#/components/schemas/User' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /auth/me:
+    get:
+      tags: [Authentication]
+      operationId: currentUser
+      summary: Refresh profile, permissions and branch assignments
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      operationId: logout
+      summary: Revoke the current token
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /profile/update:
+    post:
+      tags: [Authentication]
+      operationId: updateProfile
+      summary: Update the current user's profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string, maxLength: 255 }
+                email: { type: string, format: email }
+                phone: { type: [string, 'null'], maxLength: 30 }
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /change/password:
+    put:
+      tags: [Authentication]
+      operationId: changePassword
+      summary: Change the current user's password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, password, password_confirmation]
+              properties:
+                current_password: { type: string, format: password }
+                password: { type: string, format: password, minLength: 8 }
+                password_confirmation: { type: string, format: password }
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /general-settings:
+    get:
+      tags: [Workspace]
+      operationId: generalSettings
+      summary: Read website currency and default POS tax settings
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+  /dashboard:
+    get:
+      tags: [Workspace]
+      operationId: dashboard
+      summary: Dashboard totals and six-month chart
+      parameters:
+        - $ref: '#/components/parameters/Period'
+        - $ref: '#/components/parameters/BranchId'
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /reports:
+    get:
+      tags: [Workspace]
+      operationId: summaryReport
+      summary: Purchase, sales, payment and profit summary
+      parameters:
+        - $ref: '#/components/parameters/Period'
+        - $ref: '#/components/parameters/BranchId'
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /products:
+    get:
+      tags: [Catalog]
+      operationId: listProducts
+      summary: List website products visible to the current user
+      parameters:
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /product/search:
+    get:
+      tags: [Catalog, POS]
+      operationId: searchPosProducts
+      summary: Search POS products using branch stock and price
+      parameters:
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/BranchId'
+        - name: category_id
+          in: query
+          schema: { type: integer }
+        - name: brand_id
+          in: query
+          schema: { type: integer }
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /product/details/{id}:
+    get:
+      tags: [Catalog]
+      operationId: productDetails
+      summary: Read one product and accessible branch stock
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /add/product/info:
+    get:
+      tags: [Catalog]
+      operationId: productFormOptions
+      summary: Product form categories, brands, units and options
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /product/store:
+    post:
+      tags: [Catalog]
+      operationId: createProduct
+      summary: Create a website product using the existing product workflow
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [name, code, type, cost, price]
+              properties:
+                name: { type: string }
+                code: { type: string }
+                type: { type: string, enum: [Standard, Service] }
+                cost: { type: number }
+                price: { type: number }
+                category_id: { type: integer }
+                brand_id: { type: integer }
+                unit_id: { type: integer }
+                alert_quantity: { type: integer }
+                image: { type: string, format: binary }
+                variant: { type: boolean, description: Variants are not supported by the current mobile form }
+      responses:
+        '201': { $ref: '#/components/responses/JsonSuccess' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /product/delete/{id}:
+    delete:
+      tags: [Catalog]
+      operationId: deleteProduct
+      summary: Delete a product when it has no stock or sales history
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /categories:
+    get:
+      tags: [Catalog]
+      operationId: listCategories
+      parameters:
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+  /categories/parent-category:
+    get:
+      tags: [Catalog]
+      operationId: parentCategories
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+  /categories/store:
+    post:
+      tags: [Catalog]
+      operationId: createCategory
+      requestBody:
+        $ref: '#/components/requestBodies/Category'
+      responses:
+        '201': { $ref: '#/components/responses/JsonSuccess' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /categories/update/{id}:
+    post:
+      tags: [Catalog]
+      operationId: updateCategoryFormCompatibility
+      summary: Update category (POST compatibility for the current Flutter multipart form)
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        $ref: '#/components/requestBodies/Category'
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Catalog]
+      operationId: updateCategory
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        $ref: '#/components/requestBodies/Category'
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /categories/delete/{id}:
+    delete:
+      tags: [Catalog]
+      operationId: deleteCategory
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /brands:
+    get:
+      tags: [Catalog]
+      operationId: listBrands
+      parameters:
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+  /brands/store:
+    post:
+      tags: [Catalog]
+      operationId: createBrand
+      requestBody:
+        $ref: '#/components/requestBodies/Brand'
+      responses:
+        '201': { $ref: '#/components/responses/JsonSuccess' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /brands/update/{id}:
+    post:
+      tags: [Catalog]
+      operationId: updateBrandFormCompatibility
+      summary: Update brand (POST compatibility for the current Flutter multipart form)
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        $ref: '#/components/requestBodies/Brand'
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [Catalog]
+      operationId: updateBrand
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        $ref: '#/components/requestBodies/Brand'
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /brands/delete/{id}:
+    delete:
+      tags: [Catalog]
+      operationId: deleteBrand
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /warehouses:
+    get:
+      tags: [Catalog]
+      operationId: listWarehouses
+      parameters:
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+  /pos/branches:
+    get:
+      tags: [POS]
+      operationId: listPosBranches
+      summary: Return only branches available to the current user's role and assignment
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /warehouses/store:
+    post:
+      tags: [Catalog]
+      operationId: createWarehouse
+      requestBody:
+        $ref: '#/components/requestBodies/Warehouse'
+      responses:
+        '201': { $ref: '#/components/responses/JsonSuccess' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /warehouses/update/{id}:
+    put:
+      tags: [Catalog]
+      operationId: updateWarehouse
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      requestBody:
+        $ref: '#/components/requestBodies/Warehouse'
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /warehouses/delete/{id}:
+    delete:
+      tags: [Catalog]
+      operationId: deleteWarehouse
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /customer/search:
+    get:
+      tags: [POS]
+      operationId: searchCustomers
+      parameters:
+        - $ref: '#/components/parameters/Search'
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+  /customer/groups:
+    get:
+      tags: [POS]
+      operationId: customerGroups
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+  /customer/store:
+    post:
+      tags: [POS]
+      operationId: createCustomer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, phone]
+              properties:
+                name: { type: string }
+                phone: { type: string }
+                email: { type: [string, 'null'], format: email }
+                address: { type: [string, 'null'] }
+                customer_group_id: { type: [integer, 'null'] }
+      responses:
+        '201': { $ref: '#/components/responses/JsonSuccess' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /apply/promo/code:
+    post:
+      tags: [POS]
+      operationId: validateCoupon
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string }
+                price: { type: number, description: Client preview amount; checkout recalculates from database values }
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /payment-gateway-list:
+    get:
+      tags: [POS]
+      operationId: paymentOptions
+      parameters:
+        - $ref: '#/components/parameters/BranchId'
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /pos/store:
+    post:
+      tags: [POS]
+      operationId: storePosSaleOrDraft
+      summary: Create or update a user-owned draft, or complete a server-priced sale
+      description: >-
+        Send either items as objects containing id and qty, or product_ids and qty
+        arrays. Client prices, discounts, tax and paid amount are ignored. The
+        server applies customer-group discount, coupon, configured default tax,
+        branch pricing and stock rules before using the website SaleService.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type]
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required: [id, qty]
+                    properties:
+                      id: { type: integer }
+                      qty: { type: number, exclusiveMinimum: 0 }
+                product_ids:
+                  type: array
+                  items: { type: integer }
+                qty:
+                  type: array
+                  items: { type: number, exclusiveMinimum: 0 }
+                branch_id: { type: integer }
+                customer_id: { type: [integer, 'null'] }
+                coupon_id: { type: [integer, 'null'] }
+                payment_method: { type: [integer, string, 'null'] }
+                type: { type: string, enum: [Sales, Draft] }
+                sale_id: { type: [integer, 'null'], description: Current user's draft ID when resuming }
+      responses:
+        '201': { $ref: '#/components/responses/JsonSuccess' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+  /drafts:
+    get:
+      tags: [POS]
+      operationId: listDrafts
+      summary: List drafts belonging to the current user
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+  /draft/delete/{id}:
+    delete:
+      tags: [POS]
+      operationId: deleteDraft
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /sale/payment/success/{id}:
+    get:
+      tags: [POS]
+      operationId: salePaymentStatus
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /invoice/{id}:
+    get:
+      tags: [POS]
+      operationId: saleInvoice
+      summary: Download a branch-authorized invoice PDF
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: PDF invoice
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /purchase:
+    get:
+      tags: [Sales and purchases]
+      operationId: listPurchases
+      parameters:
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/FromDate'
+        - $ref: '#/components/parameters/ToDate'
+        - $ref: '#/components/parameters/BranchId'
+        - $ref: '#/components/parameters/StartDateLegacy'
+        - $ref: '#/components/parameters/EndDateLegacy'
+        - $ref: '#/components/parameters/WarehouseIdLegacy'
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+  /purchase/pdf:
+    get:
+      tags: [Sales and purchases]
+      operationId: purchasePdfLink
+      summary: Return an authenticated purchase export URL
+      parameters:
+        - $ref: '#/components/parameters/FromDate'
+        - $ref: '#/components/parameters/ToDate'
+        - $ref: '#/components/parameters/BranchId'
+        - $ref: '#/components/parameters/StartDateLegacy'
+        - $ref: '#/components/parameters/EndDateLegacy'
+        - $ref: '#/components/parameters/WarehouseIdLegacy'
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+  /purchase/export:
+    get:
+      tags: [Sales and purchases]
+      operationId: exportPurchases
+      parameters:
+        - $ref: '#/components/parameters/FromDate'
+        - $ref: '#/components/parameters/ToDate'
+        - $ref: '#/components/parameters/BranchId'
+        - $ref: '#/components/parameters/StartDateLegacy'
+        - $ref: '#/components/parameters/EndDateLegacy'
+        - $ref: '#/components/parameters/WarehouseIdLegacy'
+      responses:
+        '200':
+          description: PDF purchase report
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+  /sales:
+    get:
+      tags: [Sales and purchases]
+      operationId: listSales
+      parameters:
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/FromDate'
+        - $ref: '#/components/parameters/ToDate'
+        - $ref: '#/components/parameters/BranchId'
+        - $ref: '#/components/parameters/StartDateLegacy'
+        - $ref: '#/components/parameters/EndDateLegacy'
+        - $ref: '#/components/parameters/WarehouseIdLegacy'
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+  /sale/pdf:
+    get:
+      tags: [Sales and purchases]
+      operationId: salePdfLink
+      summary: Return an authenticated sales export URL
+      parameters:
+        - $ref: '#/components/parameters/FromDate'
+        - $ref: '#/components/parameters/ToDate'
+        - $ref: '#/components/parameters/BranchId'
+        - $ref: '#/components/parameters/StartDateLegacy'
+        - $ref: '#/components/parameters/EndDateLegacy'
+        - $ref: '#/components/parameters/WarehouseIdLegacy'
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+  /sale/export:
+    get:
+      tags: [Sales and purchases]
+      operationId: exportSales
+      parameters:
+        - $ref: '#/components/parameters/FromDate'
+        - $ref: '#/components/parameters/ToDate'
+        - $ref: '#/components/parameters/BranchId'
+        - $ref: '#/components/parameters/StartDateLegacy'
+        - $ref: '#/components/parameters/EndDateLegacy'
+        - $ref: '#/components/parameters/WarehouseIdLegacy'
+      responses:
+        '200':
+          description: PDF sales report
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+  /expense:
+    get:
+      tags: [Sales and purchases]
+      operationId: listExpenses
+      parameters:
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PerPage'
+        - $ref: '#/components/parameters/FromDate'
+        - $ref: '#/components/parameters/ToDate'
+        - $ref: '#/components/parameters/BranchId'
+        - $ref: '#/components/parameters/StartDateLegacy'
+        - $ref: '#/components/parameters/EndDateLegacy'
+        - $ref: '#/components/parameters/WarehouseIdLegacy'
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+  /accounts:
+    get:
+      tags: [Finance]
+      operationId: accounts
+      parameters:
+        - name: type
+          in: query
+          schema: { type: string, enum: [account, money_transfer, balance_sheet] }
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/BranchId'
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /admin/accounts:
+    get:
+      tags: [Finance]
+      operationId: adminAccounts
+      deprecated: true
+      description: Compatibility alias used by the current Flutter app. Same authorization and response as /accounts.
+      parameters:
+        - name: type
+          in: query
+          schema: { type: string, enum: [account, money_transfer, balance_sheet] }
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/BranchId'
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+  /balance:
+    get:
+      tags: [Finance]
+      operationId: balance
+      parameters:
+        - $ref: '#/components/parameters/BranchId'
+      responses:
+        '200': { $ref: '#/components/responses/JsonSuccess' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /balance/transfer:
+    post:
+      tags: [Finance]
+      operationId: recordDeposit
+      summary: Record a deposit to an accessible active account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount]
+              properties:
+                amount: { type: number, exclusiveMinimum: 0 }
+                account_id: { type: [integer, 'null'] }
+                payment_method: { type: [string, 'null'] }
+                date: { type: [string, 'null'], format: date }
+                note: { type: [string, 'null'] }
+      responses:
+        '201': { $ref: '#/components/responses/JsonSuccess' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/ValidationError' }
+components:
+  securitySchemes:
+    sanctumBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: Sanctum token
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer }
+    Search:
+      name: search
+      in: query
+      schema: { type: string }
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    PerPage:
+      name: per_page
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+    BranchId:
+      name: branch_id
+      in: query
+      schema: { type: integer }
+      description: Must be assigned to the current user; employee branch assignments override this value.
+    Period:
+      name: type
+      in: query
+      schema: { type: string, enum: [today, this_week, last_month, this_year, this_month], default: this_month }
+    FromDate:
+      name: from_date
+      in: query
+      schema: { type: string, format: date }
+    ToDate:
+      name: to_date
+      in: query
+      schema: { type: string, format: date }
+    StartDateLegacy:
+      name: start_date
+      in: query
+      schema: { type: string, format: date, description: Flutter compatibility format is DD-MM-YYYY }
+      deprecated: true
+    EndDateLegacy:
+      name: end_date
+      in: query
+      schema: { type: string, format: date, description: Flutter compatibility format is DD-MM-YYYY }
+      deprecated: true
+    WarehouseIdLegacy:
+      name: warehouse_id
+      in: query
+      schema: { type: integer }
+      description: Legacy mobile filter key; same assigned-branch checks as branch_id.
+      deprecated: true
+  requestBodies:
+    Category:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              name: { type: string }
+              parent_id: { type: [integer, 'null'] }
+              image: { type: [string, 'null'] }
+        multipart/form-data:
+          schema:
+            type: object
+            required: [name]
+            properties:
+              name: { type: string }
+              parent_id: { type: [integer, 'null'] }
+              image: { type: string, format: binary }
+    Brand:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [name]
+            properties:
+              name: { type: string }
+              image: { type: [string, 'null'] }
+        multipart/form-data:
+          schema:
+            type: object
+            required: [title]
+            properties:
+              title: { type: string }
+              image: { type: string, format: binary }
+    Warehouse:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              name: { type: string }
+              address: { type: string }
+              email: { type: [string, 'null'], format: email }
+              phone: { type: [string, 'null'] }
+  responses:
+    JsonSuccess:
+      description: Successful JSON response
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ApiResponse' }
+    Unauthorized:
+      description: Missing, expired, invalid or inactive session
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: Missing permission or inaccessible branch
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Record not found within the current user's scope
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: Record cannot be deleted because it has operational history
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ValidationError:
+      description: Validation failed or business rule rejected the request
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    ApiResponse:
+      type: object
+      required: [message, data]
+      properties:
+        message: { type: string }
+        data:
+          type: object
+          additionalProperties: true
+    Error:
+      type: object
+      properties:
+        message: { type: string }
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: string }
+    User:
+      type: object
+      required: [id, name, permissions, branches]
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: [string, 'null'], format: email }
+        phone: { type: [string, 'null'] }
+        profile_photo: { type: [string, 'null'], format: uri }
+        roles:
+          type: array
+          items: { type: string }
+        permissions:
+          type: array
+          items: { type: string }
+        branch_id: { type: [integer, 'null'], description: Locked employee branch when applicable }
+        branches:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              name: { type: string }

@@ -1,0 +1,6 @@
+# Copy to key.properties and fill these values with a private Play upload key.
+# Keep key.properties and the keystore out of source control.
+storeFile=app/onepos-upload-key.jks
+storePassword=CHANGE_ME
+keyAlias=onepos-upload
+keyPassword=CHANGE_ME
