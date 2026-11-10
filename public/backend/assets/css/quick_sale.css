@@ -1,0 +1,340 @@
+:root {
+    /* Template Specific Colors derived from Screenshot */
+    --primary-color: #24695c; /* The Teal color from the screenshot */
+    --primary-hover: #1b4f45;
+    --bg-body: #f5f7fa; /* The light grey background */
+    --text-dark: #2c323f;
+    --text-muted: #8e9092;
+    --border-color: #f2f4f6;
+    --card-radius: 15px;
+}
+
+body {
+    font-family: "Roboto", "Inter", sans-serif;
+    background-color: var(--bg-body);
+    height: 100vh;
+    color: var(--text-dark);
+    overflow: hidden;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: #d3d3d3;
+    border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-color);
+}
+
+/* --- Theme Utilities --- */
+.text-primary-theme {
+    color: var(--primary-color) !important;
+}
+.bg-primary-theme {
+    background-color: var(--primary-color) !important;
+    color: white;
+}
+
+.btn-primary-theme {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+    border-radius: 5px; /* Slightly sharper styling like template */
+    font-weight: 500;
+    padding: 0.6rem 1.2rem;
+    transition: all 0.3s ease;
+}
+.btn-primary-theme:hover {
+    background-color: var(--primary-hover, #256e69);
+    border-color: var(--primary-hover, #256e69);
+    color: #fff;
+}
+
+.btn-outline-theme {
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+    background: transparent;
+}
+.btn-outline-theme:hover,
+.btn-outline-theme.active {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+/* --- Navbar (Top Header) --- */
+.custom-navbar {
+    background: white;
+    height: 80px; /* Slightly taller like the screenshot header */
+    border-bottom: 1px solid #ebebeb;
+    padding: 0 30px;
+}
+.brand-logo {
+    font-weight: 700;
+    font-size: 1.5rem;
+    color: var(--primary-color);
+}
+
+/* --- Layout --- */
+.pos-container {
+    height: calc(100vh - 80px);
+}
+
+/* --- Cart Section (Left) --- */
+.cart-section {
+    background: white;
+    border-right: 1px solid #ebebeb;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    z-index: 100;
+}
+
+.cart-header {
+    padding: 20px;
+    border-bottom: 1px solid #ebebeb;
+}
+
+.cart-items-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 15px;
+    background-color: #fff;
+}
+
+/* Cart Item Styling to match 'Table' look in screenshot */
+.cart-item {
+    border: 1px solid #f1f1f1;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    padding: 10px;
+    transition: all 0.2s;
+}
+.cart-item:hover {
+    background-color: #fcfcfc;
+    border-color: var(--primary-color);
+}
+
+.cart-item-img {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 8px;
+}
+
+/* --- Product Section (Right) --- */
+.product-section {
+    height: 100%;
+    overflow-y: auto;
+    background-color: var(--bg-body); /* Grey background */
+    padding: 25px;
+    min-width: 0;
+}
+
+/* Search Bar Styling (Matching the top search in screenshot 1) */
+.custom-search-input {
+    border: 1px solid #e6e6e6;
+    border-radius: 30px; /* Rounded pill shape */
+    padding: 12px 20px;
+    background: white;
+    box-shadow: none;
+}
+.custom-search-input:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(36, 105, 92, 0.1);
+}
+
+/* Product Card (Matching the white card style) */
+.product-card {
+    background: white;
+    border: none;
+    border-radius: var(--card-radius);
+    padding: 20px;
+    height: 100%;
+    cursor: pointer;
+    transition: transform 0.3s, box-shadow 0.3s;
+    box-shadow: 0 4px 14px rgba(174, 197, 231, 0.1);
+    position: relative;
+    overflow: hidden;
+}
+.product-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 30px rgba(36, 105, 92, 0.15);
+}
+
+/* STYLES FOR PRODUCT IMAGE */
+.product-image-img {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    border-radius: 12px;
+    margin-bottom: 15px;
+    background-color: #f0f0f0; /* Placeholder color while loading */
+}
+
+/* Category Tabs */
+.category-rail {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+}
+.category-nav {
+    position: relative;
+    z-index: 2;
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid #e6e6e6;
+    background: #fff;
+    color: var(--primary-color);
+    box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    line-height: 1;
+}
+.category-nav i {
+    font-size: 11px;
+    pointer-events: none;
+}
+.category-rail.can-scroll-left .category-nav-prev,
+.category-rail.can-scroll-right .category-nav-next {
+    display: flex;
+}
+.category-nav:hover {
+    background: var(--primary-color);
+    color: #fff;
+    border-color: var(--primary-color);
+}
+.category-scroll {
+    display: flex;
+    flex-wrap: nowrap;
+    flex: 1 1 0;
+    gap: 10px;
+    width: 0;
+    min-width: 0;
+    padding: 5px 2px 2px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x proximity;
+    scroll-padding-inline: 8px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch;
+}
+.category-scroll::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+}
+.category-rail.can-scroll-right .category-scroll {
+    -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 72px), transparent calc(100% - 12px));
+    mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 72px), transparent calc(100% - 12px));
+}
+.category-rail.can-scroll-left .category-scroll {
+    -webkit-mask-image: linear-gradient(to right, transparent 12px, #000 72px);
+    mask-image: linear-gradient(to right, transparent 12px, #000 72px);
+}
+.category-rail.can-scroll-left.can-scroll-right .category-scroll {
+    -webkit-mask-image: linear-gradient(to right, transparent 12px, #000 72px, #000 calc(100% - 72px), transparent calc(100% - 12px));
+    mask-image: linear-gradient(to right, transparent 12px, #000 72px, #000 calc(100% - 72px), transparent calc(100% - 12px));
+}
+.category-tab {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+    background: white;
+    border: 1px solid #ebebeb;
+    color: var(--text-dark);
+    padding: 8px 20px;
+    border-radius: 5px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: all 0.3s;
+}
+.category-tab.active,
+.category-tab:hover {
+    background-color: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+}
+
+/* Mobile specific */
+@media (max-width: 991.98px) {
+    .category-rail,
+    .category-scroll {
+        display: none !important;
+    }
+
+    .cart-section {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 85vh;
+        border-radius: 20px 20px 0 0;
+        box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.1);
+        transform: translateY(110%);
+        z-index: 1050;
+        border-right: none;
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .cart-section.show {
+        transform: translateY(0);
+    }
+
+    #overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.4);
+        z-index: 1040;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s;
+        backdrop-filter: blur(2px);
+    }
+    #overlay.show {
+        opacity: 1;
+        pointer-events: auto;
+    }
+
+    .mobile-cart-btn {
+        display: flex !important;
+        position: fixed;
+        right: 16px;
+        left: auto;
+        bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+        z-index: 1046;
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background-color: var(--primary-color);
+        color: white;
+        box-shadow: 0 8px 22px rgba(36, 105, 92, 0.4);
+        align-items: center;
+        justify-content: center;
+        font-size: 1.25rem;
+        border: none;
+        transform: none;
+    }
+}
+@media (min-width: 992px) {
+    .mobile-cart-btn,
+    #overlay,
+    .mobile-close-cart {
+        display: none !important;
+    }
+}
