@@ -33,14 +33,14 @@ const _baseUrl = String.fromEnvironment(
 const _baseUrlPreferenceKey = 'onepos_base_url';
 const _downloadChannel = MethodChannel('bd.onetech.pos/download');
 
-class _MobileLoginTicket {
-  const _MobileLoginTicket({required this.baseUri, required this.value});
+class MobileLoginTicket {
+  const MobileLoginTicket({required this.baseUri, required this.value});
 
   final Uri baseUri;
   final String value;
 }
 
-Future<_MobileLoginTicket> _requestTicket(
+Future<MobileLoginTicket> _requestTicket(
   Uri baseUri, {
   required String path,
   Map<String, String> body = const {},
@@ -55,8 +55,8 @@ Future<_MobileLoginTicket> _requestTicket(
     request.write(jsonEncode(body));
 
     final response = await request.close().timeout(const Duration(seconds: 18));
-    final body = await utf8.decoder.bind(response).join();
-    final decoded = jsonDecode(body);
+    final responseBody = await utf8.decoder.bind(response).join();
+    final decoded = jsonDecode(responseBody);
     final responseData = decoded is Map ? decoded : const <String, dynamic>{};
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final message = responseData['message'];
@@ -77,7 +77,7 @@ Future<_MobileLoginTicket> _requestTicket(
         'The server returned an invalid sign-in ticket.',
       );
     }
-    return _MobileLoginTicket(baseUri: baseUri, value: ticket);
+    return MobileLoginTicket(baseUri: baseUri, value: ticket);
   } on SocketException {
     throw const FormatException(
       'Could not connect to this server. Check the URL and connection.',
@@ -85,9 +85,7 @@ Future<_MobileLoginTicket> _requestTicket(
   } on HandshakeException {
     throw const FormatException('The server HTTPS certificate is not trusted.');
   } on TimeoutException {
-    throw const FormatException(
-      'The server took too long to respond.',
-    );
+    throw const FormatException('The server took too long to respond.');
   } on FormatException {
     rethrow;
   } catch (_) {
@@ -192,144 +190,73 @@ Future<void> main() async {
 
 class OnePosApp extends StatefulWidget {
   const OnePosApp({super.key, required this.initialCustomBaseUri});
-
   final Uri? initialCustomBaseUri;
-
   @override
   State<OnePosApp> createState() => _OnePosAppState();
 }
 
 class _OnePosAppState extends State<OnePosApp> {
-  Uri? _activeBaseUri;
-  String? _demoTicket;
-  bool _working = false;
-  String? _setupError;
-
+  late Uri _baseUri;
   @override
   void initState() {
     super.initState();
-    _activeBaseUri = widget.initialCustomBaseUri;
+    _baseUri = widget.initialCustomBaseUri ?? Uri.parse(_baseUrl);
   }
 
-  Future<void> _startCustom(String value) async {
-    setState(() {
-      _working = true;
-      _setupError = null;
-    });
-    try {
-      final uri = _parseBaseUri(value);
-      await _validateServerAddress(uri);
-      final preferences = await SharedPreferences.getInstance();
-      await preferences.setString(_baseUrlPreferenceKey, uri.toString());
-      if (!mounted) return;
-      setState(() {
-        _activeBaseUri = uri;
-        _demoTicket = null;
-      });
-    } on FormatException catch (error) {
-      if (mounted) setState(() => _setupError = error.message);
-    } catch (_) {
-      if (mounted) {
-        setState(() => _setupError = 'Could not verify this server.');
-      }
-    } finally {
-      if (mounted) setState(() => _working = false);
-    }
+  Future<MobileLoginTicket> _loginUser(
+    String baseUrl,
+    String identifier,
+    String password,
+  ) async {
+    final baseUri = _parseBaseUri(baseUrl);
+    await _validateServerAddress(baseUri);
+    final ticket = await _requestTicket(
+      baseUri,
+      path: '/api/v1/mobile/login',
+      body: {'identifier': identifier, 'password': password},
+    );
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString(_baseUrlPreferenceKey, baseUri.toString());
+    if (mounted) setState(() => _baseUri = baseUri);
+    return ticket;
   }
 
-  Future<void> _startDemo() async {
-    setState(() {
-      _working = true;
-      _setupError = null;
-    });
-    try {
-      final demoUri = Uri.parse('https://pos.onetech.bd');
-      await _validateServerAddress(demoUri);
-      if (!mounted) return;
-      setState(() {
-        _activeBaseUri = demoUri;
-        _demoTicket = null;
-      });
-      try {
-        final ticket = await _requestDemoGuestTicket(demoUri);
-        if (mounted) setState(() => _demoTicket = ticket);
-      } on FormatException catch (error) {
-        if (mounted) _showGuestDemoMessage(error.message);
-      }
-    } on FormatException catch (error) {
-      if (mounted) setState(() => _setupError = error.message);
-    } catch (_) {
-      if (mounted) {
-        setState(
-          () => _setupError = 'Could not start the demo. Please try again.',
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _working = false);
-    }
+  Future<MobileLoginTicket> _loginDemo() async {
+    final demoUri = Uri.parse(_baseUrl);
+    await _validateServerAddress(demoUri);
+    return _requestTicket(demoUri, path: '/api/v1/demo/guest-session');
   }
 
   Future<void> _changeDomain() async {
     final preferences = await SharedPreferences.getInstance();
     await preferences.remove(_baseUrlPreferenceKey);
-    if (!mounted) return;
-    setState(() {
-      _activeBaseUri = null;
-      _demoTicket = null;
-      _setupError = null;
-    });
+    if (mounted) setState(() => _baseUri = Uri.parse(_baseUrl));
   }
 
-  Future<void> _resetToMain(Uri oldBaseUri) async {
-    await _clearOriginData(oldBaseUri);
-    final mainUri = Uri.parse('https://pos.onetech.bd');
-    await _clearOriginData(mainUri);
+  Future<void> _resetToMain() async {
     final preferences = await SharedPreferences.getInstance();
-    await preferences.setString(_baseUrlPreferenceKey, mainUri.toString());
-    if (!mounted) return;
-    setState(() {
-      _activeBaseUri = mainUri;
-      _demoTicket = null;
-    });
-  }
-
-  void _showGuestDemoMessage(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
-      );
+    await preferences.setString(_baseUrlPreferenceKey, _baseUrl);
+    if (mounted) setState(() => _baseUri = Uri.parse(_baseUrl));
   }
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'ONEPOS',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: _brandColor),
-        scaffoldBackgroundColor: _backgroundColor,
-        useMaterial3: true,
-      ),
-      home: _activeBaseUri == null
-          ? _ConnectionSetupScreen(
-              working: _working,
-              error: _setupError,
-              initialUrl: _baseUrl,
-              onStartDemo: _startDemo,
-              onConnect: _startCustom,
-            )
-          : OnePosWebView(
-              key: ValueKey('${_activeBaseUri!}:${_demoTicket ?? 'web'}'),
-              baseUri: _activeBaseUri!,
-              demoTicket: _demoTicket,
-              onChangeDomain: _changeDomain,
-              onResetToMain: () => _resetToMain(_activeBaseUri!),
-              onStartDemo: _startDemo,
-            ),
-    );
-  }
+  Widget build(BuildContext context) => MaterialApp(
+    title: 'ONEPOS',
+    debugShowCheckedModeBanner: false,
+    theme: ThemeData(
+      colorScheme: ColorScheme.fromSeed(seedColor: _brandColor),
+      scaffoldBackgroundColor: _backgroundColor,
+      useMaterial3: true,
+    ),
+    home: OnePosWebView(
+      key: ValueKey(_baseUri.origin),
+      baseUri: _baseUri,
+      onUserLogin: _loginUser,
+      onDemoLogin: _loginDemo,
+      onChangeDomain: _changeDomain,
+      onResetToMain: _resetToMain,
+    ),
+  );
 }
 
 class OnePosWebView extends StatefulWidget {
@@ -338,23 +265,21 @@ class OnePosWebView extends StatefulWidget {
     required this.baseUri,
     required this.onChangeDomain,
     required this.onResetToMain,
-    required this.onStartDemo,
-    this.demoTicket,
+    required this.onUserLogin,
+    required this.onDemoLogin,
   });
-
   final Uri baseUri;
-  final String? demoTicket;
+  final Future<MobileLoginTicket> Function(String, String, String) onUserLogin;
+  final Future<MobileLoginTicket> Function() onDemoLogin;
   final Future<void> Function() onChangeDomain;
   final Future<void> Function() onResetToMain;
-  final Future<void> Function() onStartDemo;
-
   @override
   State<OnePosWebView> createState() => _OnePosWebViewState();
 }
 
 class _OnePosWebViewState extends State<OnePosWebView>
     with SingleTickerProviderStateMixin {
-  late final Uri _baseUri = widget.baseUri;
+  late Uri _baseUri = widget.baseUri;
   late final AnimationController _launchAnimationController;
   InAppWebViewController? _controller;
   String? _mainFrameError;
@@ -363,7 +288,9 @@ class _OnePosWebViewState extends State<OnePosWebView>
   bool _launchAnimationFinished = false;
   bool _startupSplashVisible = true;
   bool _startupSplashMounted = true;
-  bool _demoTicketSubmitted = false;
+  MobileLoginTicket? _pendingTicket;
+  bool _ticketSubmitted = false;
+  bool _authRequestRunning = false;
 
   Uri get _loginUri => _baseUri.resolve('/login');
 
@@ -593,31 +520,108 @@ class _OnePosWebViewState extends State<OnePosWebView>
   Future<void> _leaveForDomainSetup() async {
     await _sendWebLogout();
     await _clearOriginData(_baseUri);
-    if (mounted) await widget.onChangeDomain();
+    if (!mounted) return;
+    await widget.onChangeDomain();
+    _navigateToLogin(Uri.parse(_baseUrl));
   }
 
   Future<void> _resetToMain() async {
     await _sendWebLogout();
     await _clearOriginData(_baseUri);
-    await _clearOriginData(Uri.parse('https://pos.onetech.bd'));
-    if (mounted) await widget.onResetToMain();
+    final mainUri = Uri.parse(_baseUrl);
+    await _clearOriginData(mainUri);
+    if (!mounted) return;
+    await widget.onResetToMain();
+    _navigateToLogin(mainUri);
+  }
+
+  void _navigateToLogin(Uri baseUri) {
+    setState(() {
+      _baseUri = baseUri;
+      _pendingTicket = null;
+      _ticketSubmitted = false;
+      _mainFrameError = null;
+    });
+    _controller?.loadUrl(
+      urlRequest: URLRequest(url: WebUri(baseUri.resolve('/login').toString())),
+    );
+  }
+
+  Future<Map<String, dynamic>> _handleAuthBridge(dynamic raw) async {
+    if (_authRequestRunning)
+      return {'ok': false, 'message': 'A sign-in request is already running.'};
+    final controller = _controller;
+    if (controller == null)
+      return {'ok': false, 'message': 'The login page is not ready yet.'};
+    final current = Uri.tryParse((await controller.getUrl())?.toString() ?? '');
+    if (current == null || !_isInternal(current))
+      return {
+        'ok': false,
+        'message': 'Sign-in is allowed only from this server.',
+      };
+    if (raw is! Map)
+      return {'ok': false, 'message': 'Invalid sign-in request.'};
+
+    _authRequestRunning = true;
+    try {
+      late final MobileLoginTicket ticket;
+      if (raw['mode'] == 'demo') {
+        ticket = await widget.onDemoLogin();
+      } else if (raw['mode'] == 'user') {
+        final baseUrl = raw['baseUrl'];
+        final identifier = raw['identifier'];
+        final password = raw['password'];
+        if (baseUrl is! String || identifier is! String || password is! String)
+          return {
+            'ok': false,
+            'message': 'Enter your server, username and password.',
+          };
+        ticket = await widget.onUserLogin(baseUrl, identifier, password);
+      } else {
+        return {'ok': false, 'message': 'Choose Demo or User sign-in.'};
+      }
+      unawaited(
+        Future<void>.delayed(const Duration(milliseconds: 120), () {
+          if (mounted) _beginTicketLogin(ticket);
+        }),
+      );
+      return {'ok': true};
+    } on FormatException catch (error) {
+      return {'ok': false, 'message': error.message};
+    } catch (_) {
+      return {'ok': false, 'message': 'Could not sign in. Please try again.'};
+    } finally {
+      _authRequestRunning = false;
+    }
+  }
+
+  void _beginTicketLogin(MobileLoginTicket ticket) {
+    if (!mounted) return;
+    setState(() {
+      _baseUri = ticket.baseUri;
+      _pendingTicket = ticket;
+      _ticketSubmitted = false;
+      _mainFrameError = null;
+    });
+    _controller?.loadUrl(
+      urlRequest: URLRequest(
+        url: WebUri(ticket.baseUri.resolve('/login').toString()),
+      ),
+    );
   }
 
   Future<void> _handleAppMenu(String action) async {
     switch (action) {
       case 'logout':
         await _sendWebLogout();
+        await _clearOriginData(_baseUri);
+        _navigateToLogin(_baseUri);
         break;
       case 'change-domain':
         await _leaveForDomainSetup();
         break;
       case 'reset':
         await _resetToMain();
-        break;
-      case 'demo':
-        await _sendWebLogout();
-        await _clearOriginData(_baseUri);
-        if (mounted) await widget.onStartDemo();
         break;
     }
   }
@@ -670,20 +674,36 @@ class _OnePosWebViewState extends State<OnePosWebView>
                 ),
                 onWebViewCreated: (controller) {
                   _controller = controller;
+                  controller.addJavaScriptHandler(
+                    handlerName: 'oneposAuth',
+                    callback: (arguments) => _handleAuthBridge(
+                      arguments.isEmpty ? null : arguments.first,
+                    ),
+                  );
                 },
                 onLoadStop: (controller, url) {
                   if (!mounted) return;
                   setState(() => _mainFrameError = null);
-                  final ticket = widget.demoTicket;
-                  if (ticket != null && !_demoTicketSubmitted) {
-                    _demoTicketSubmitted = true;
+                  final ticket = _pendingTicket;
+                  final loadedUri = Uri.tryParse(url?.toString() ?? '');
+                  if (ticket != null &&
+                      !_ticketSubmitted &&
+                      loadedUri != null &&
+                      _isInternal(loadedUri) &&
+                      loadedUri.path == '/login') {
+                    _ticketSubmitted = true;
+                    _pendingTicket = null;
                     final body = Uint8List.fromList(
-                      utf8.encode('ticket=${Uri.encodeComponent(ticket)}'),
+                      utf8.encode(
+                        'ticket=${Uri.encodeComponent(ticket.value)}',
+                      ),
                     );
                     unawaited(
                       controller.postUrl(
                         url: WebUri(
-                          _baseUri.resolve('/demo/session/exchange').toString(),
+                          _baseUri
+                              .resolve('/mobile/session/exchange')
+                              .toString(),
                         ),
                         postData: body,
                       ),
@@ -732,7 +752,6 @@ class _OnePosWebViewState extends State<OnePosWebView>
                         value: 'reset',
                         child: Text('Reset to pos.onetech.bd'),
                       ),
-                      PopupMenuItem(value: 'demo', child: Text('Demo / Guest')),
                     ],
                   ),
                 ),
@@ -837,250 +856,6 @@ Future<void> _clearOriginData(Uri origin) async {
     await WebStorageManager.instance().deleteOrigin(origin: origin.origin);
   } catch (_) {
     // A missing WebView storage entry is already equivalent to a clean origin.
-  }
-}
-
-class _ConnectionSetupScreen extends StatefulWidget {
-  const _ConnectionSetupScreen({
-    required this.working,
-    required this.error,
-    required this.initialUrl,
-    required this.onStartDemo,
-    required this.onConnect,
-  });
-
-  final bool working;
-  final String? error;
-  final String initialUrl;
-  final Future<void> Function() onStartDemo;
-  final Future<void> Function(String url) onConnect;
-
-  @override
-  State<_ConnectionSetupScreen> createState() => _ConnectionSetupScreenState();
-}
-
-class _ConnectionSetupScreenState extends State<_ConnectionSetupScreen> {
-  late final TextEditingController _domainController;
-  bool _showCustomDomain = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _domainController = TextEditingController(text: widget.initialUrl);
-  }
-
-  @override
-  void dispose() {
-    _domainController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        width: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment(-0.8, -0.8),
-            radius: 1.5,
-            colors: [Color(0xFFE4F1EE), Color(0xFFF7FAFC)],
-          ),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
-                child: Card(
-                  elevation: 8,
-                  shadowColor: const Color(0x26308E87),
-                  color: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(28, 32, 28, 28),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Image.asset(
-                          'assets/images/onepos-mark.png',
-                          width: 64,
-                          height: 64,
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'ONEPOS',
-                          style: TextStyle(
-                            color: Color(0xFF172B3A),
-                            fontSize: 24,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Choose how you want to connect.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: Color(0xFF71828D)),
-                        ),
-                        const SizedBox(height: 24),
-                        if (widget.error != null) ...[
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFFF5F3),
-                              border: Border.all(
-                                color: const Color(0xFFF0C7C0),
-                              ),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              widget.error!,
-                              style: const TextStyle(color: Color(0xFF9D3D32)),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-                        if (!_showCustomDomain) ...[
-                          SizedBox(
-                            width: double.infinity,
-                            height: 50,
-                            child: FilledButton.icon(
-                              onPressed: widget.working
-                                  ? null
-                                  : () => unawaited(widget.onStartDemo()),
-                              icon: widget.working
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                  : const Icon(Icons.visibility_outlined),
-                              label: const Text('Demo / Guest'),
-                              style: FilledButton.styleFrom(
-                                backgroundColor: _brandColor,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 50,
-                            child: OutlinedButton.icon(
-                              onPressed: widget.working
-                                  ? null
-                                  : () => setState(
-                                      () => _showCustomDomain = true,
-                                    ),
-                              icon: const Icon(Icons.dns_outlined),
-                              label: const Text('Custom User / Own Domain'),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: _brandColor,
-                                side: const BorderSide(color: _brandColor),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ] else ...[
-                          TextField(
-                            controller: _domainController,
-                            keyboardType: TextInputType.url,
-                            textInputAction: TextInputAction.go,
-                            autocorrect: false,
-                            enableSuggestions: false,
-                            decoration: InputDecoration(
-                              labelText: 'OnePOS server URL',
-                              hintText: 'https://yourbusiness.com',
-                              prefixIcon: const Icon(Icons.language),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            onSubmitted: widget.working
-                                ? null
-                                : (value) => unawaited(widget.onConnect(value)),
-                          ),
-                          const SizedBox(height: 8),
-                          const Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              'Enter the public HTTPS domain or a link ending in /login.',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Color(0xFF71828D),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 18),
-                          SizedBox(
-                            width: double.infinity,
-                            height: 50,
-                            child: FilledButton.icon(
-                              onPressed: widget.working
-                                  ? null
-                                  : () => unawaited(
-                                      widget.onConnect(_domainController.text),
-                                    ),
-                              icon: widget.working
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                  : const Icon(Icons.link),
-                              label: const Text('Connect'),
-                              style: FilledButton.styleFrom(
-                                backgroundColor: _brandColor,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                            ),
-                          ),
-                          TextButton(
-                            onPressed: widget.working
-                                ? null
-                                : () =>
-                                      setState(() => _showCustomDomain = false),
-                            child: const Text('Back'),
-                          ),
-                        ],
-                        const SizedBox(height: 22),
-                        const Text(
-                          'Secure access to your OnePOS workspace',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Color(0xFF71828D),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
 
