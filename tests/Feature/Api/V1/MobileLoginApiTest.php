@@ -78,6 +78,8 @@ class MobileLoginApiTest extends TestCase
             ->assertOk()
             ->assertSee('Base URL')
             ->assertSee('data-mode="demo"', false)
-            ->assertSee('data-mode="user"', false);
+            ->assertSee('data-mode="user"', false)
+            ->assertSee('is-demo-mode #mobilePasswordGroup', false)
+            ->assertDontSee('Enter your OnePOS server domain.');
     }
 }

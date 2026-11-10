@@ -203,7 +203,8 @@ class _OnePosAppState extends State<OnePosApp> {
   }
 
   Future<void> _verifyServerCompatibility(Uri baseUri) async {
-    final client = HttpClient()..connectionTimeout = const Duration(seconds: 12);
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 12);
     try {
       final request = await client.getUrl(
         baseUri.resolve('/api/v1/mobile/bootstrap'),
@@ -622,7 +623,9 @@ class _OnePosWebViewState extends State<OnePosWebView>
         final baseUrl = raw['baseUrl'];
         final identifier = raw['identifier'];
         final password = raw['password'];
-        if (baseUrl is! String || identifier is! String || password is! String) {
+        if (baseUrl is! String ||
+            identifier is! String ||
+            password is! String) {
           return {
             'ok': false,
             'message': 'Enter your server, username and password.',

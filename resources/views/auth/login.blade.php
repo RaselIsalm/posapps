@@ -536,6 +536,7 @@
 
         .onepos-app-mode.is-demo-mode #mobileBaseUrlGroup,
         .onepos-app-mode.is-demo-mode #credentialFields,
+        .onepos-app-mode.is-demo-mode #mobilePasswordGroup,
         .onepos-app-mode.is-demo-mode .form-options {
             display: none;
         }
@@ -765,7 +766,6 @@
                                     class="field-control" placeholder="https://pos.onetech.bd" autocomplete="url"
                                     autocapitalize="none" spellcheck="false" required>
                             </div>
-                            <span class="field-error">{{ __('Enter your OnePOS server domain.') }}</span>
                         </div>
                     @endif
 
@@ -784,7 +784,7 @@
                         @enderror
                     </div>
 
-                    <div class="field-group">
+                    <div class="field-group" id="mobilePasswordGroup">
                         <label class="field-label" for="password">{{ __('Password') }}</label>
                         <div class="field-control-wrap">
                             <svg class="field-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4.5" y="10" width="15" height="10.5" rx="2.5" stroke="currentColor" stroke-width="1.7"/><path d="M8 10V7a4 4 0 1 1 8 0v3m-4 4v2.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
