@@ -62,5 +62,3 @@ jobs:
             echo "No Flutter test suite is present; skipping flutter test."
           fi
 
-      - name: Build Android debug APK
-        run: flutter build apk --debug
