@@ -1,6 +1,6 @@
 # ONEPOS Android app
 
-This Flutter app has a native first-run choice for **Demo / Guest** and **Custom User**. Both choices open a website login page first: Demo uses `https://pos.onetech.bd/login`, while Custom User opens the `/login` page on the supplied server. Demo then requests a short-lived, one-use guest ticket and exchanges it for the server's restricted guest session; no demo password is embedded or stored. If guest access is not configured, the login page remains available for normal sign-in. The app accepts either a server origin or a full `/login` URL, stores only the normalized server origin, and keeps website sessions in Android WebView. Browser visitors continue to use the normal website login.
+The Android app opens the website `/login` page immediately. Laravel detects the `ONEPOSApp/1.0` WebView user-agent and renders the app-only Base URL field above credentials plus side-by-side Demo and User mode buttons beneath Sign in. Browser requests keep the existing login form and do not receive these controls. User mode validates the selected public HTTPS server with `/api/v1/mobile/bootstrap`, requests a short-lived one-use ticket at `/api/v1/mobile/login`, then exchanges it inside WebView for the website session. Demo mode requests a read-only guest ticket from `https://pos.onetech.bd`. Passwords and Sanctum tokens are not persisted; only the selected server origin is saved after successful User authentication, and WebView owns the session cookie.
 
 The app adds an `ONEPOSApp/1.0` user-agent marker so Laravel disables Debugbar injection only for app requests. The app shell shows no page-navigation progress bar; site feedback for actions such as signing in or saving remains visible.
 
@@ -27,7 +27,7 @@ flutter build apk --debug --target-platform android-arm64 \
 adb install -r build/app/outputs/flutter-apk/app-debug.apk
 ```
 
-Release builds use `https://pos.onetech.bd` for Demo / Guest and as the default server address. Custom User accepts any public HTTPS server URL and goes directly to `/login`; the mobile app does not require the mobile bootstrap endpoint to display the login page. Release builds reject HTTP, IP literals, and private/local addresses. Server setup is documented in [`docs/mobile-app-setup.md`](../docs/mobile-app-setup.md).
+Release builds use `https://pos.onetech.bd` as the initial login server and Demo / Guest server. Custom User accepts any public HTTPS server URL, checks `/api/v1/mobile/bootstrap`, and only then sends credentials to `/api/v1/mobile/login`. Release builds reject HTTP, IP literals, and private/local addresses. Server setup is documented in [`docs/mobile-app-setup.md`](../docs/mobile-app-setup.md).
 
 Build a signed ARM64 live APK with:
 

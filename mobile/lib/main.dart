@@ -57,7 +57,9 @@ Future<MobileLoginTicket> _requestTicket(
     final response = await request.close().timeout(const Duration(seconds: 18));
     final responseBody = await utf8.decoder.bind(response).join();
     final decoded = jsonDecode(responseBody);
-    final responseData = decoded is Map ? decoded : const <String, dynamic>{};
+    final responseData = decoded is Map<String, dynamic>
+        ? decoded
+        : <String, dynamic>{};
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final message = responseData['message'];
       throw FormatException(
@@ -67,11 +69,8 @@ Future<MobileLoginTicket> _requestTicket(
       );
     }
 
-    dynamic ticket;
-    if (responseData is Map) {
-      final data = responseData['data'];
-      if (data is Map) ticket = data['ticket'];
-    }
+    final data = responseData['data'];
+    final ticket = data is Map ? data['ticket'] : null;
     if (ticket is! String || ticket.length != 64) {
       throw const FormatException(
         'The server returned an invalid sign-in ticket.',
@@ -90,7 +89,7 @@ Future<MobileLoginTicket> _requestTicket(
     rethrow;
   } catch (_) {
     throw const FormatException(
-      'Could not start guest demo. The login page is still available.',
+      'Could not communicate with this OnePOS server.',
     );
   } finally {
     client.close(force: true);
@@ -203,6 +202,54 @@ class _OnePosAppState extends State<OnePosApp> {
     _baseUri = widget.initialCustomBaseUri ?? Uri.parse(_baseUrl);
   }
 
+  Future<void> _verifyServerCompatibility(Uri baseUri) async {
+    final client = HttpClient()..connectionTimeout = const Duration(seconds: 12);
+    try {
+      final request = await client.getUrl(
+        baseUri.resolve('/api/v1/mobile/bootstrap'),
+      );
+      request.followRedirects = false;
+      request.headers.set(HttpHeaders.acceptHeader, 'application/json');
+      request.headers.set(HttpHeaders.userAgentHeader, 'ONEPOSApp/1.0');
+      final response = await request.close().timeout(
+        const Duration(seconds: 18),
+      );
+      final responseBody = await utf8.decoder.bind(response).join();
+      final payload = jsonDecode(responseBody);
+      final data = payload is Map<String, dynamic> ? payload['data'] : null;
+      if (response.statusCode != 200 ||
+          data is! Map ||
+          data['application'] != 'ONEPOS' ||
+          data['web_login'] != true ||
+          data['api_version'] != 1) {
+        throw const FormatException(
+          'This server is not compatible with the ONEPOS app.',
+        );
+      }
+    } on SocketException {
+      throw const FormatException(
+        'Could not reach this server. Check its domain and internet access.',
+      );
+    } on HandshakeException {
+      throw const FormatException(
+        'The server HTTPS certificate is not trusted.',
+      );
+    } on TimeoutException {
+      throw const FormatException('The server took too long to respond.');
+    } on FormatException catch (error) {
+      if (error.message.startsWith('This server')) rethrow;
+      throw const FormatException(
+        'This server returned an invalid compatibility response.',
+      );
+    } catch (_) {
+      throw const FormatException(
+        'This server does not support the ONEPOS app.',
+      );
+    } finally {
+      client.close(force: true);
+    }
+  }
+
   Future<MobileLoginTicket> _loginUser(
     String baseUrl,
     String identifier,
@@ -210,6 +257,7 @@ class _OnePosAppState extends State<OnePosApp> {
   ) async {
     final baseUri = _parseBaseUri(baseUrl);
     await _validateServerAddress(baseUri);
+    await _verifyServerCompatibility(baseUri);
     final ticket = await _requestTicket(
       baseUri,
       path: '/api/v1/mobile/login',
@@ -217,7 +265,7 @@ class _OnePosAppState extends State<OnePosApp> {
     );
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString(_baseUrlPreferenceKey, baseUri.toString());
-    if (mounted) setState(() => _baseUri = baseUri);
+
     return ticket;
   }
 
@@ -548,20 +596,23 @@ class _OnePosWebViewState extends State<OnePosWebView>
   }
 
   Future<Map<String, dynamic>> _handleAuthBridge(dynamic raw) async {
-    if (_authRequestRunning)
+    if (_authRequestRunning) {
       return {'ok': false, 'message': 'A sign-in request is already running.'};
+    }
     final controller = _controller;
-    if (controller == null)
+    if (controller == null) {
       return {'ok': false, 'message': 'The login page is not ready yet.'};
+    }
     final current = Uri.tryParse((await controller.getUrl())?.toString() ?? '');
-    if (current == null || !_isInternal(current))
+    if (current == null || !_isInternal(current) || current.path != '/login') {
       return {
         'ok': false,
         'message': 'Sign-in is allowed only from this server.',
       };
-    if (raw is! Map)
+    }
+    if (raw is! Map) {
       return {'ok': false, 'message': 'Invalid sign-in request.'};
-
+    }
     _authRequestRunning = true;
     try {
       late final MobileLoginTicket ticket;
@@ -571,11 +622,12 @@ class _OnePosWebViewState extends State<OnePosWebView>
         final baseUrl = raw['baseUrl'];
         final identifier = raw['identifier'];
         final password = raw['password'];
-        if (baseUrl is! String || identifier is! String || password is! String)
+        if (baseUrl is! String || identifier is! String || password is! String) {
           return {
             'ok': false,
             'message': 'Enter your server, username and password.',
           };
+        }
         ticket = await widget.onUserLogin(baseUrl, identifier, password);
       } else {
         return {'ok': false, 'message': 'Choose Demo or User sign-in.'};

@@ -1,10 +1,10 @@
 # ONEPOS mobile API v1
 
-The Play Store Flutter app opens a customer-provided server's normal `/login` page directly in WebView. It does not require `GET /api/v1/mobile/bootstrap` before showing the login page. The website retains ownership of Custom User credential entry and browser login behavior. Demo / Guest opens `https://pos.onetech.bd/login`, then uses the one-use guest-ticket API below to start its restricted session without storing a password in the APK.
+The Play Store Flutter app opens the website `/login` page directly. The `ONEPOSApp/1.0` marker enables app-only UI controls on that page; it grants no authentication or permissions. Custom User validates server compatibility, then exchanges credentials for a short-lived one-use web-session ticket. Demo tickets are available only on `https://pos.onetech.bd` and open an isolated read-only demo session. Browser login and `POST /api/v1/auth/login` remain unchanged.
 
 `POST /api/v1/auth/login` remains available to API clients and returns a Sanctum token. The current WebView sign-in does not store or exchange that token. There is no public user registration; owners and administrators create users and grant roles in each customer's website deployment.
 
-Live deployment check (2026-11-10): `https://pos.onetech.bd/login` returns HTTP 200, while `/api/v1/mobile/bootstrap` returns HTTP 404. The current Android app is not blocked by that missing bootstrap route because it opens `/login` directly. Guest-ticket API calls still require deploying their routes and configuring the isolated demo database.
+Live deployment check (2026-11-10): `https://pos.onetech.bd/login` returns HTTP 200 while the new mobile API routes are not yet deployed. Publish these backend changes and configure the isolated demo database before automatic production login can work.
 
 ## Authentication and response format
 
@@ -16,8 +16,10 @@ Successful JSON responses use `{ "message": "...", "data": { ... } }`. Laravel v
 
 | Method | Path | Permission / behavior |
 |---|---|---|
-| GET | `/mobile/bootstrap` | Public OnePOS/version compatibility descriptor; no user data |
-| POST | `/demo/guest-session` | Rate-limited; when enabled, returns a short-lived one-use ticket for the isolated read-only demo database |
+| GET | `/mobile/bootstrap` | Public OnePOS/version compatibility descriptor; no user data; Custom User must validate this before sending credentials |
+| POST | `/mobile/login` | Rate-limited; accepts `identifier` (email or username) and `password`, returns a one-use web-session ticket for an active user |
+| POST | `/demo/guest-session` | Rate-limited; main server only, returns a short-lived one-use ticket for isolated read-only demo database |
+| POST | `/mobile/session/exchange` | Consumes a one-use user or demo ticket, creates the Laravel web session, and redirects to the dashboard |
 | POST | `/auth/login` | Public; inactive users and invalid credentials are rejected |
 | GET | `/auth/me` | Current user, permissions, assigned branches |
 | POST | `/auth/logout` | Revokes current Sanctum token |

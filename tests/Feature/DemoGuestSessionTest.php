@@ -31,6 +31,8 @@ class DemoGuestSessionTest extends TestCase
         Schema::connection('sqlite')->create('mobile_demo_guest_tickets', function (Blueprint $table) {
             $table->id();
             $table->char('token_hash', 64)->unique();
+            $table->string('mode', 16)->default('demo');
+            $table->unsignedBigInteger('user_id')->nullable();
             $table->timestamp('expires_at')->index();
             $table->timestamp('consumed_at')->nullable();
             $table->timestamps();

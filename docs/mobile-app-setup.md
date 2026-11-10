@@ -1,14 +1,13 @@
 # ONEPOS Android app server setup
 
-The Play Store app supports two entry modes:
+The Android app loads the website `/login` page at startup. Laravel detects the `ONEPOSApp/1.0` user-agent and renders app-only controls on that existing login card: Base URL above the credential fields and Demo/User mode selectors beneath Sign in. Normal browser login remains unchanged.
 
-- **Demo / Guest** first opens `https://pos.onetech.bd/login`, then exchanges a short-lived guest ticket for a restricted demo session when the main server has guest access enabled. No guest password is placed in the APK or stored on the device. If guest access is not configured, the normal login page remains available.
-- **Custom User** accepts a server domain or full `/login` URL and opens that server's `/login` page directly. It does not call the mobile bootstrap API before showing login. The app stores the server origin only; website cookies keep the web session.
+- **User mode** starts selected. The user enters an origin or full `/login` URL, username/email and password. The app validates the HTTPS/public host, requires a compatible `/api/v1/mobile/bootstrap` response, then posts credentials to `/api/v1/mobile/login`. A one-use ticket is exchanged at `/mobile/session/exchange` inside that server's WebView, creating the normal Laravel web session.
+- **Demo mode** contacts only `https://pos.onetech.bd` at `/api/v1/demo/guest-session`, exchanges the ticket at `/mobile/session/exchange`, and enters the separately seeded read-only demo database. No demo password is placed in the APK.
 
-Each customer server must expose a working HTTPS `/login` page. No customer database is shared with another installation.
+After successful User authentication, the app stores only the selected server origin. WebView keeps the website cookie. Logout clears the WebView cookie but keeps the selected origin; Change domain returns to the default login page and clears the stored origin; Reset returns to `https://pos.onetech.bd`. Each customer server uses its own independent OnePOS installation and database.
 
-The Android app calls `POST /api/v1/demo/guest-session` after selecting Demo / Guest, and exchanges the one-use ticket at `POST /demo/session/exchange`. The login page is loaded first; a successful ticket exchange then starts the guest session. Both routes require deployment and a configured, isolated demo database for automatic guest entry to work.
-
+Custom User requires these endpoints on each customer deployment: `GET /api/v1/mobile/bootstrap`, `POST /api/v1/mobile/login`, and `POST /mobile/session/exchange`. The main server additionally needs the Demo endpoint and isolated database configuration below. API login `POST /api/v1/auth/login` remains available to API clients and continues to return Sanctum tokens.
 ## Configure the isolated demo database
 
 The demo database must be a separate database from the live production database. Configure these server environment values before enabling demo access:

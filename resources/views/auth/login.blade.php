@@ -761,7 +761,7 @@
                             <label class="field-label" for="mobileBaseUrl">{{ __('Base URL') }}</label>
                             <div class="field-control-wrap">
                                 <svg class="field-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18m0-18a15 15 0 0 0 0 18" stroke="currentColor" stroke-width="1.5"/></svg>
-                                <input id="mobileBaseUrl" name="base_url" type="url" value="{{ old('base_url', $mobileBaseUrl) }}"
+                                <input id="mobileBaseUrl" name="base_url" type="text" inputmode="url" value="{{ old('base_url', $mobileBaseUrl) }}"
                                     class="field-control" placeholder="https://pos.onetech.bd" autocomplete="url"
                                     autocapitalize="none" spellcheck="false" required>
                             </div>
